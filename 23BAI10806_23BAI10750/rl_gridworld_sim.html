@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RL Grid World — Autonomous Path Planning</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Inter:wght@300;400;600;700&display=swap');
+
+        :root {
+            --bg: #0a0e1a;
+            --panel: #111827;
+            --border: #1e2d45;
+            --accent1: #00d4ff;
+            --accent2: #7c3aed;
+            --accent3: #10b981;
+            --warn: #f59e0b;
+            --danger: #ef4444;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --grid-cell: #131f35;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(0, 212, 255, 0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(124, 58, 237, 0.05) 0%, transparent 60%);
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            background: linear-gradient(90deg, var(--accent1), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-top: 4px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .panel-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent1);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent1);
+            box-shadow: 0 0 8px var(--accent1);
+        }
+
+        /* Phase Switcher */
+        .phase-switcher {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .phase-btn {
+            flex: 1;
+            padding: 8px 4px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.25s;
+            letter-spacing: 0.06em;
+        }
+
+        .phase-btn.active {
+            border-color: var(--accent1);
+            color: var(--accent1);
+            background: rgba(0, 212, 255, 0.08);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+        }
+
+        .phase-btn:hover:not(.active) {
+            border-color: var(--muted);
+            color: var(--text);
+        }
+
+        /* Stats */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(30, 45, 69, 0.5);
+            font-size: 0.78rem;
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: var(--muted);
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .stat-value.green {
+            color: var(--accent3);
+        }
+
+        .stat-value.blue {
+            color: var(--accent1);
+        }
+
+        .stat-value.yellow {
+            color: var(--warn);
+        }
+
+        .stat-value.red {
+            color: var(--danger);
+        }
+
+        /* Grid Canvas */
+        .grid-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #gridCanvas {
+            background: var(--grid-cell);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            image-rendering: crisp-edges;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 9px 20px;
+            border-radius: 8px;
+            border: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent1), #0090cc);
+            color: #000;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 24px rgba(0, 212, 255, 0.45);
+        }
+
+        .btn-secondary {
+            background: rgba(124, 58, 237, 0.15);
+            color: var(--accent2);
+            border: 1px solid var(--accent2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(124, 58, 237, 0.3);
+            box-shadow: 0 0 14px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        /* Speed Slider */
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.72rem;
+            color: var(--muted);
+            width: 100%;
+            justify-content: center;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 130px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent1);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent1);
+        }
+
+        /* Reward Graph */
+        #rewardCanvas {
+            width: 100%;
+            height: 130px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0c1525;
+            display: block;
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .legend-swatch {
+            width: 20px;
+            height: 14px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        /* Q-table mini visualization */
+        #qtableCanvas {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0c1525;
+            display: block;
+        }
+
+        /* Phase badge */
+        .phase-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+        }
+
+        .phase-badge.q {
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--accent1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .phase-badge.dqn {
+            background: rgba(124, 58, 237, 0.1);
+            color: var(--accent2);
+            border: 1px solid rgba(124, 58, 237, 0.3);
+        }
+
+        .pulse {
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        /* Slow Mode */
+        .slow-panel {
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .slow-panel .panel-title {
+            color: var(--warn);
+        }
+
+        .slow-panel .panel-title::before {
+            background: var(--warn);
+            box-shadow: 0 0 8px var(--warn);
+        }
+
+        .btn-slow {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warn);
+            border: 1px solid var(--warn);
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+        }
+
+        .btn-slow.on {
+            background: rgba(245, 158, 11, 0.35);
+            box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-slow:hover {
+            background: rgba(245, 158, 11, 0.28);
+        }
+
+        @keyframes stepFlash {
+            0% {
+                box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.0);
+            }
+
+            30% {
+                box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.9);
+            }
+
+            100% {
+                box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.0);
+            }
+        }
+
+        .agent-flash {
+            animation: stepFlash 0.35s ease-out;
+        }
+
+        .log-box {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--muted);
+            background: #0c1525;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .log-box .log-line {
+            margin-bottom: 2px;
+        }
+
+        .log-box .log-line.info {
+            color: var(--accent1);
+        }
+
+        .log-box .log-line.success {
+            color: var(--accent3);
+        }
+
+        .log-box .log-line.warn {
+            color: var(--warn);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>⬡ Grid World — Autonomous Path Planning via RL</h1>
+        <p>6×6 Environment · Q-Learning &amp; DQN · Dynamic Obstacles · Real-Time Visualization</p>
+    </header>
+
+    <div class="main-layout">
+
+        <!-- LEFT PANEL -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="panel">
+                <div class="panel-title">Algorithm Phase</div>
+                <div class="phase-switcher">
+                    <button class="phase-btn active" id="btnQ" onclick="switchPhase('q')">Q-Learning</button>
+                    <button class="phase-btn" id="btnDQN" onclick="switchPhase('dqn')">DQN</button>
+                </div>
+                <div id="phaseBadge" class="phase-badge q"><span class="pulse">●</span> Q-LEARNING ACTIVE</div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Live Statistics</div>
+                <div class="stat-row"><span class="stat-label">Episode</span><span class="stat-value blue"
+                        id="statEp">0</span></div>
+                <div class="stat-row"><span class="stat-label">Step</span><span class="stat-value"
+                        id="statStep">0</span></div>
+                <div class="stat-row"><span class="stat-label">Cumulative Reward</span><span class="stat-value green"
+                        id="statRew">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Episode Reward</span><span class="stat-value yellow"
+                        id="statEpRew">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Epsilon (ε)</span><span class="stat-value"
+                        id="statEps">1.000</span></div>
+                <div class="stat-row"><span class="stat-label">Best Reward</span><span class="stat-value green"
+                        id="statBest">—</span></div>
+                <div class="stat-row"><span class="stat-label">Status</span><span class="stat-value"
+                        id="statStatus">Idle</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Legend</div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:rgba(0,212,255,0.3); border:2px solid #00d4ff;">
+                        </div>🤖 Agent
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:#f59e0b;"></div>🏆 Goal
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:#0a0a0a; border:1px solid #444;"></div>Static
+                        Obstacle
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:#ff3333;"></div>D1 Dynamic (Red)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:#ff6b00;"></div>D2 Dynamic (Orange-Red)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:#cc0000;"></div>D3 Dynamic (Dark Red)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:rgba(16,185,129,0.25); border:1px dashed #10b981;">
+                        </div>Optimal Path
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background:rgba(0,212,255,0.15);"></div>Visited Trail
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: Grid + Controls -->
+        <div class="grid-wrapper">
+            <canvas id="gridCanvas" width="480" height="480"></canvas>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="startTraining()">▶ Train</button>
+                <button class="btn btn-secondary" onclick="showOptimalPath()">★ Optimal Path</button>
+                <button class="btn btn-danger" onclick="resetAll()">↺ Reset</button>
+            </div>
+            <div class="slider-row">
+                <span>Speed</span>
+                <input type="range" id="speedSlider" min="1" max="10" value="5" oninput="updateSpeed(this.value)">
+                <span id="speedLabel">5×</span>
+            </div>
+
+            <!-- Slow Watch Panel -->
+            <div class="slow-panel" style="width:100%;">
+                <div class="panel-title">👁 Slow Watch Mode</div>
+                <button class="btn-slow" id="slowToggle" onclick="toggleSlowMode()">⏸ OFF — Click to Enable</button>
+                <div class="slider-row" style="justify-content:flex-start; flex-wrap:wrap; gap:12px;">
+                    <span style="color:var(--warn)">Delay</span>
+                    <input type="range" id="slowDelay" min="50" max="1000" step="50" value="300"
+                        oninput="document.getElementById('slowDelayLabel').textContent=this.value+'ms'">
+                    <span id="slowDelayLabel"
+                        style="color:var(--warn); font-family:'JetBrains Mono',monospace;">300ms</span>
+                </div>
+                <div class="slider-row" style="justify-content:flex-start; flex-wrap:wrap; gap:12px; margin-top:6px;">
+                    <span style="color:var(--warn)">Watch Episodes</span>
+                    <input type="range" id="slowEpCount" min="1" max="20" value="5"
+                        oninput="document.getElementById('slowEpLabel').textContent=this.value">
+                    <span id="slowEpLabel" style="color:var(--warn); font-family:'JetBrains Mono',monospace;">5</span>
+                </div>
+                <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; line-height:1.5;">
+                    Runs selected # of episodes at the chosen delay per step, then resumes fast training automatically.
+                </div>
+            </div>
+
+            <!-- Reward Graph -->
+            <div class="panel" style="width:100%; padding:14px;">
+                <div class="panel-title">Reward / Episode</div>
+                <canvas id="rewardCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+
+            <div class="panel">
+                <div class="panel-title">Phase Comparison</div>
+                <div class="stat-row"><span class="stat-label">Q-Table Size</span><span class="stat-value blue">36 ×
+                        4</span></div>
+                <div class="stat-row"><span class="stat-label">DQN Layers</span><span class="stat-value blue">3
+                        (FC)</span></div>
+                <div class="stat-row"><span class="stat-label">Q Convergence</span><span class="stat-value green"
+                        id="qConv">—</span></div>
+                <div class="stat-row"><span class="stat-label">DQN Loss</span><span class="stat-value yellow"
+                        id="dqnLoss">—</span></div>
+                <div class="stat-row"><span class="stat-label">Replay Buffer</span><span class="stat-value"
+                        id="replayBuf">—</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Q-Value Heatmap</div>
+                <canvas id="qtableCanvas" height="200"></canvas>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Event Log</div>
+                <div class="log-box" id="logBox"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">State Transition</div>
+                <div class="stat-row"><span class="stat-label">Prev State</span><span class="stat-value"
+                        id="prevState">—</span></div>
+                <div class="stat-row"><span class="stat-label">Action</span><span class="stat-value yellow"
+                        id="lastAction">—</span></div>
+                <div class="stat-row"><span class="stat-label">Next State</span><span class="stat-value"
+                        id="nextState">—</span></div>
+                <div class="stat-row"><span class="stat-label">Reward</span><span class="stat-value green"
+                        id="lastReward">—</span></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ─── Constants ────────────────────────────────────────────────────────────────
+        const GRID = 6;
+        const CELL = 80;
+        const GOAL = { r: 5, c: 5 };
+        const STATIC_OBS = [{ r: 1, c: 1 }, { r: 1, c: 3 }, { r: 2, c: 4 }, { r: 3, c: 1 }, { r: 3, c: 3 }, { r: 4, c: 2 }];
+        const ACTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+        const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+        // ─── State ────────────────────────────────────────────────────────────────────
+        let phase = 'q';
+        let running = false;
+        let animId = null;
+        let episode = 0;
+        let globalStep = 0;
+        let cumulativeReward = 0;
+        let episodeReward = 0;
+        let bestReward = -Infinity;
+        let epsilon = 1.0;
+        let speed = 5;
+        let rewardHistory = [];
+        let visitedTrail = [];
+        let showingOptimal = false;
+        let optimalPath = [];
+
+        // Agent & obstacle positions
+        let agentPos = { r: 0, c: 0 };
+        // Three dynamic obstacles with distinct start positions and colors
+        const DYN_COLORS = ['#ff3333', '#ff6b00', '#cc0000']; // red shades: bright, orange-red, dark red
+        const DYN_GLYPHS = ['⚠', '⚠', '⚠'];
+        const DYN_STARTS = [{ r: 2, c: 2 }, { r: 0, c: 4 }, { r: 4, c: 5 }];
+        let dynObsList = DYN_STARTS.map(p => ({ ...p }));
+
+        // Q-Table [36][4]
+        let Q = Array.from({ length: 36 }, () => [0, 0, 0, 0]);
+
+        // DQN simple neural network (2-layer)
+        let dqnWeights = null;
+        let replayBuffer = [];
+        const REPLAY_CAP = 500;
+        const BATCH_SIZE = 32;
+        const LR = 0.003;
+        const GAMMA = 0.95;
+        let dqnLoss = 0;
+
+        // ─── DOM refs ─────────────────────────────────────────────────────────────────
+        const gridCanvas = document.getElementById('gridCanvas');
+        const gCtx = gridCanvas.getContext('2d');
+        const rewardCanvas = document.getElementById('rewardCanvas');
+        const rCtx = rewardCanvas.getContext('2d');
+        const qtCanvas = document.getElementById('qtableCanvas');
+        const qCtx = qtCanvas.getContext('2d');
+
+        // ─── Helpers ──────────────────────────────────────────────────────────────────
+        const s2rc = s => ({ r: Math.floor(s / GRID), c: s % GRID });
+        const rc2s = (r, c) => r * GRID + c;
+        const posEq = (a, b) => a.r === b.r && a.c === b.c;
+
+        function isStatic(r, c) { return STATIC_OBS.some(o => o.r === r && o.c === c); }
+        function isDyn(r, c) { return dynObsList.some(o => o.r === r && o.c === c); }
+        function dynIdx(r, c) { return dynObsList.findIndex(o => o.r === r && o.c === c); }
+        function isGoal(r, c) { return GOAL.r === r && GOAL.c === c; }
+
+        function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+
+        function resetAgent() {
+            agentPos = { r: 0, c: 0 };
+            dynObsList = DYN_STARTS.map(p => ({ ...p }));
+            visitedTrail = [];
+            episodeReward = 0;
+            globalStep = 0;
+        }
+
+        function log(msg, type = '') {
+            const box = document.getElementById('logBox');
+            const line = document.createElement('div');
+            line.className = 'log-line ' + type;
+            const ts = String(episode).padStart(3, '0');
+            line.textContent = `[EP${ts}] ${msg}`;
+            box.appendChild(line);
+            box.scrollTop = box.scrollHeight;
+            if (box.children.length > 80) box.removeChild(box.firstChild);
+        }
+
+        // ─── DQN Mini Neural Network ──────────────────────────────────────────────────
+        // Input: 2 (r,c normalized), hidden: 16, output: 4
+        function initDQN() {
+            const he = (fan_in) => Math.sqrt(2 / fan_in);
+            const rand = (fan_in) => (Math.random() * 2 - 1) * he(fan_in);
+            dqnWeights = {
+                W1: Array.from({ length: 16 }, () => [rand(2), rand(2)]),
+                b1: Array(16).fill(0),
+                W2: Array.from({ length: 4 }, () => Array.from({ length: 16 }, () => rand(16))),
+                b2: Array(4).fill(0)
+            };
+            replayBuffer = [];
+        }
+
+        function relu(x) { return Math.max(0, x); }
+
+        function dqnForward(state) {
+            const inp = [state.r / 5, state.c / 5];
+            const h = dqnWeights.W1.map((w, i) => relu(w[0] * inp[0] + w[1] * inp[1] + dqnWeights.b1[i]));
+            const out = dqnWeights.W2.map((w, i) => w.reduce((s, wj, j) => s + wj * h[j], 0) + dqnWeights.b2[i]);
+            return { out, h, inp };
+        }
+
+        function dqnTrain() {
+            if (replayBuffer.length < BATCH_SIZE) return;
+            const batch = [];
+            for (let i = 0; i < BATCH_SIZE; i++) {
+                const idx = Math.floor(Math.random() * replayBuffer.length);
+                batch.push(replayBuffer[idx]);
+            }
+            let totalLoss = 0;
+            batch.forEach(({ s, a, r, ns, done }) => {
+                const { out, h, inp } = dqnForward(s);
+                const nextQ = dqnForward(ns).out;
+                const target = out.slice();
+                target[a] = done ? r : r + GAMMA * Math.max(...nextQ);
+                const err = out.map((o, i) => o - target[i]);
+                totalLoss += err.reduce((s, e) => s + e * e, 0) / 4;
+
+                // Backprop W2, b2
+                for (let i = 0; i < 4; i++) {
+                    const d = err[i];
+                    dqnWeights.b2[i] -= LR * d;
+                    for (let j = 0; j < 16; j++) dqnWeights.W2[i][j] -= LR * d * h[j];
+                }
+                // Backprop W1, b1
+                for (let j = 0; j < 16; j++) {
+                    let dh = 0;
+                    for (let i = 0; i < 4; i++) dh += err[i] * dqnWeights.W2[i][j];
+                    dh *= (h[j] > 0 ? 1 : 0); // ReLU grad
+                    dqnWeights.b1[j] -= LR * dh;
+                    dqnWeights.W1[j][0] -= LR * dh * inp[0];
+                    dqnWeights.W1[j][1] -= LR * dh * inp[1];
+                }
+            });
+            dqnLoss = totalLoss / BATCH_SIZE;
+        }
+
+        // ─── RL Logic ─────────────────────────────────────────────────────────────────
+        function getQValues(pos) {
+            return phase === 'q' ? Q[rc2s(pos.r, pos.c)] : dqnForward(pos).out;
+        }
+
+        function chooseAction(pos) {
+            if (Math.random() < epsilon) return Math.floor(Math.random() * 4);
+            const vals = getQValues(pos);
+            return vals.indexOf(Math.max(...vals));
+        }
+
+        function step(pos, action) {
+            const [dr, dc] = DIRS[action];
+            let nr = clamp(pos.r + dr, 0, GRID - 1);
+            let nc = clamp(pos.c + dc, 0, GRID - 1);
+            if (isStatic(nr, nc)) { nr = pos.r; nc = pos.c; }
+            const hitDyn = isDyn(nr, nc);   // any of the 3 dynamic obstacles
+            const hitGoal = isGoal(nr, nc);
+            let reward = -0.1;
+            if (hitDyn) reward = -1.5;
+            if (nr === pos.r && nc === pos.c) reward = -0.3;
+            if (hitGoal) reward = 10;
+            return { nr, nc, reward, done: hitGoal || hitDyn };
+        }
+
+        function updateQ(s, a, r, ns, done) {
+            const sid = rc2s(s.r, s.c);
+            const nsid = rc2s(ns.r, ns.c);
+            const alpha = 0.3;
+            const target = done ? r : r + GAMMA * Math.max(...Q[nsid]);
+            Q[sid][a] += alpha * (target - Q[sid][a]);
+        }
+
+        function moveDynObs() {
+            const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+            dynObsList.forEach((obs, idx) => {
+                let candidates = dirs.map(([dr, dc]) => ({ r: obs.r + dr, c: obs.c + dc }))
+                    .filter(p => {
+                        if (p.r < 0 || p.r >= GRID || p.c < 0 || p.c >= GRID) return false;
+                        if (isStatic(p.r, p.c) || isGoal(p.r, p.c) || posEq(p, agentPos)) return false;
+                        // Don't collide with other dynamic obstacles
+                        if (dynObsList.some((o, i) => i !== idx && o.r === p.r && o.c === p.c)) return false;
+                        return true;
+                    });
+                if (candidates.length) dynObsList[idx] = candidates[Math.floor(Math.random() * candidates.length)];
+            });
+        }
+
+        function decayEpsilon() {
+            epsilon = Math.max(0.05, epsilon * (phase === 'q' ? 0.992 : 0.995));
+        }
+
+        // ─── Optimal Path (BFS with max-Q greedy) ─────────────────────────────────────
+        function computeOptimalPath() {
+            let pos = { r: 0, c: 0 };
+            const path = [{ ...pos }];
+            const visited = new Set();
+            visited.add(rc2s(pos.r, pos.c));
+            for (let i = 0; i < 50; i++) {
+                if (isGoal(pos.r, pos.c)) break;
+                const q = getQValues(pos);
+                const sorted = q.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+                let moved = false;
+                for (const { i: a } of sorted) {
+                    const [dr, dc] = DIRS[a];
+                    const nr = clamp(pos.r + dr, 0, GRID - 1), nc = clamp(pos.c + dc, 0, GRID - 1);
+                    const ns = rc2s(nr, nc);
+                    if (!isStatic(nr, nc) && !visited.has(ns)) {
+                        pos = { r: nr, c: nc }; path.push({ ...pos }); visited.add(ns); moved = true; break;
+                    }
+                }
+                if (!moved) break;
+            }
+            return path;
+        }
+
+        // ─── Slow Watch State ─────────────────────────────────────────────────────────
+        let slowMode = false;
+        let slowModeActive = false;   // currently in a slow-watch episode run
+        let slowEpsRemaining = 0;
+        let slowTimer = null;
+
+        function toggleSlowMode() {
+            slowMode = !slowMode;
+            const btn = document.getElementById('slowToggle');
+            btn.classList.toggle('on', slowMode);
+            btn.textContent = slowMode ? '▶ ON  — Watching Next Episodes Slowly' : '⏸ OFF — Click to Enable';
+            if (!slowMode) slowModeActive = false;
+        }
+
+        function getSlowDelay() { return parseInt(document.getElementById('slowDelay').value); }
+        function getSlowEpCount() { return parseInt(document.getElementById('slowEpCount').value); }
+
+        // ─── Training Loop (async, frame-based) ───────────────────────────────────────
+        let stepsPerFrame = 3;
+
+        function doOneStep() {
+            if (!running) return false;
+            const prevPos = { ...agentPos };
+            const action = chooseAction(agentPos);
+            const { nr, nc, reward, done } = step(agentPos, action);
+            const nextPos = { r: nr, c: nc };
+
+            if (phase === 'q') {
+                updateQ(prevPos, action, reward, nextPos, done);
+            } else {
+                replayBuffer.push({ s: { ...prevPos }, a: action, r: reward, ns: { ...nextPos }, done });
+                if (replayBuffer.length > REPLAY_CAP) replayBuffer.shift();
+                dqnTrain();
+            }
+
+            agentPos = nextPos;
+            visitedTrail.push({ ...agentPos });
+            if (visitedTrail.length > 30) visitedTrail.shift();
+
+            episodeReward += reward;
+            cumulativeReward += reward;
+            globalStep++;
+
+            document.getElementById('prevState').textContent = `(${prevPos.r},${prevPos.c})`;
+            document.getElementById('lastAction').textContent = ACTIONS[action];
+            document.getElementById('nextState').textContent = `(${nextPos.r},${nextPos.c})`;
+            document.getElementById('lastReward').textContent = reward.toFixed(2);
+
+            moveDynObs();
+
+            let episodeDone = false;
+            if (done || globalStep >= 200) {
+                rewardHistory.push(episodeReward);
+                if (episodeReward > bestReward) {
+                    bestReward = episodeReward;
+                    if (episodeReward > 0) log(`New best: ${episodeReward.toFixed(1)}`, 'success');
+                }
+                if (done && reward > 0) log(`Goal reached! Reward: ${episodeReward.toFixed(1)}`, 'success');
+                episode++;
+                decayEpsilon();
+                resetAgent();
+                episodeDone = true;
+                if (episode >= (phase === 'q' ? 150 : 300)) {
+                    running = false;
+                    log(`Training complete (${phase.toUpperCase()})`, 'info');
+                    document.getElementById('statStatus').textContent = 'Done ✓';
+                    showingOptimal = false;
+                }
+            }
+            return episodeDone;
+        }
+
+        // ─── Slow-step ticker (setTimeout chain) ──────────────────────────────────────
+        function slowTick() {
+            if (!running) { slowModeActive = false; return; }
+            const epDone = doOneStep();
+            updateStats();
+            drawGrid();
+            drawRewardGraph();
+            drawQHeatmap();
+
+            if (epDone) {
+                slowEpsRemaining--;
+                log(`Slow-watch episode done. ${slowEpsRemaining} left.`, 'warn');
+                if (slowEpsRemaining <= 0) {
+                    slowModeActive = false;
+                    log('Slow-watch finished → resuming fast training', 'info');
+                    // Resume fast RAF loop
+                    if (!animId) animId = requestAnimationFrame(animLoop);
+                    return;
+                }
+            }
+            // Schedule next step
+            slowTimer = setTimeout(slowTick, getSlowDelay());
+        }
+
+        function startSlowWatch() {
+            if (!running) return;
+            if (slowTimer) clearTimeout(slowTimer);
+            slowModeActive = true;
+            slowEpsRemaining = getSlowEpCount();
+            log(`Slow-watch started: ${slowEpsRemaining} episodes @ ${getSlowDelay()}ms/step`, 'warn');
+            // Kill RAF loop to hand control to setTimeout
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            slowTick();
+        }
+
+        // ─── Fast Animation Loop (RAF) ────────────────────────────────────────────────
+        function animLoop() {
+            if (!running && !showingOptimal) { animId = null; return; }
+
+            // If slow mode just became enabled, kick off slow-watch
+            if (running && slowMode && !slowModeActive) {
+                startSlowWatch();
+                return; // RAF loop yields to setTimeout chain
+            }
+
+            for (let i = 0; i < stepsPerFrame && running; i++) doOneStep();
+            updateStats();
+            drawGrid();
+            drawRewardGraph();
+            drawQHeatmap();
+            animId = requestAnimationFrame(animLoop);
+        }
+
+        // ─── Drawing ──────────────────────────────────────────────────────────────────
+        const COLORS = {
+            bg: '#0d1829',
+            gridLine: '#1a2744',
+            trail: 'rgba(0,212,255,0.12)',
+            agent: '#00d4ff',
+            goal: '#f59e0b',
+            static: '#111111',
+            dynObs: '#ff3333',
+            optimal: 'rgba(16,185,129,0.35)',
+        };
+
+        function drawGrid() {
+            const c = gCtx;
+            c.clearRect(0, 0, 480, 480);
+
+            // Background
+            c.fillStyle = COLORS.bg;
+            c.fillRect(0, 0, 480, 480);
+
+            // Trail
+            visitedTrail.forEach((p, i) => {
+                const alpha = (i / visitedTrail.length) * 0.4;
+                c.fillStyle = `rgba(0,212,255,${alpha})`;
+                c.fillRect(p.c * CELL + 2, p.r * CELL + 2, CELL - 4, CELL - 4);
+            });
+
+            // Optimal path overlay
+            if (showingOptimal && optimalPath.length) {
+                optimalPath.forEach((p, i) => {
+                    c.fillStyle = COLORS.optimal;
+                    c.fillRect(p.c * CELL + 3, p.r * CELL + 3, CELL - 6, CELL - 6);
+                    if (i < optimalPath.length - 1) {
+                        const next = optimalPath[i + 1];
+                        c.strokeStyle = '#10b981';
+                        c.lineWidth = 2.5;
+                        c.setLineDash([6, 4]);
+                        c.beginPath();
+                        c.moveTo(p.c * CELL + CELL / 2, p.r * CELL + CELL / 2);
+                        c.lineTo(next.c * CELL + CELL / 2, next.r * CELL + CELL / 2);
+                        c.stroke();
+                        c.setLineDash([]);
+                    }
+                });
+            }
+
+            // Grid lines
+            c.strokeStyle = COLORS.gridLine;
+            c.lineWidth = 1;
+            for (let i = 0; i <= GRID; i++) {
+                c.beginPath(); c.moveTo(i * CELL, 0); c.lineTo(i * CELL, 480); c.stroke();
+                c.beginPath(); c.moveTo(0, i * CELL); c.lineTo(480, i * CELL); c.stroke();
+            }
+
+            // Q-value arrows (best action per cell, Q-phase only)
+            if (phase === 'q') {
+                for (let r = 0; r < GRID; r++) for (let col = 0; col < GRID; col++) {
+                    if (isStatic(r, col) || isGoal(r, col)) continue;
+                    const qv = Q[rc2s(r, col)];
+                    const best = qv.indexOf(Math.max(...qv));
+                    const [dr, dc] = DIRS[best];
+                    const cx = col * CELL + CELL / 2, cy = r * CELL + CELL / 2;
+                    const maxQ = Math.max(...qv);
+                    const alpha = Math.min(0.7, Math.max(0.1, (maxQ + 2) / 12));
+                    c.globalAlpha = alpha;
+                    c.strokeStyle = '#4a6fa5';
+                    c.lineWidth = 1.5;
+                    c.beginPath();
+                    c.moveTo(cx, cy);
+                    c.lineTo(cx + dc * 22, cy + dr * 22);
+                    c.stroke();
+                    // Arrowhead
+                    const angle = Math.atan2(dr, dc);
+                    c.beginPath();
+                    c.moveTo(cx + dc * 22, cy + dr * 22);
+                    c.lineTo(cx + dc * 22 - 7 * Math.cos(angle - 0.4), cy + dr * 22 - 7 * Math.sin(angle - 0.4));
+                    c.moveTo(cx + dc * 22, cy + dr * 22);
+                    c.lineTo(cx + dc * 22 - 7 * Math.cos(angle + 0.4), cy + dr * 22 - 7 * Math.sin(angle + 0.4));
+                    c.stroke();
+                    c.globalAlpha = 1;
+                }
+            }
+
+            // Static obstacles — black blocks with bright white X
+            STATIC_OBS.forEach(o => {
+                c.fillStyle = '#0a0a0a';
+                c.strokeStyle = '#333';
+                c.lineWidth = 1;
+                c.fillRect(o.c * CELL + 4, o.r * CELL + 4, CELL - 8, CELL - 8);
+                c.strokeRect(o.c * CELL + 4, o.r * CELL + 4, CELL - 8, CELL - 8);
+                c.fillStyle = 'rgba(255,255,255,0.85)';
+                c.font = 'bold 26px Inter';
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.fillText('✕', o.c * CELL + CELL / 2, o.r * CELL + CELL / 2);
+            });
+
+            // Dynamic obstacles — red shades (D1 bright red, D2 orange-red, D3 dark red)
+            dynObsList.forEach((obs, idx) => {
+                const color = DYN_COLORS[idx];
+                const ox = obs.c * CELL, oy = obs.r * CELL;
+                const grd = c.createRadialGradient(ox + CELL / 2, oy + CELL / 2, 4, ox + CELL / 2, oy + CELL / 2, CELL / 2);
+                grd.addColorStop(0, color);
+                grd.addColorStop(1, '#4a0000');
+                c.shadowBlur = 18;
+                c.shadowColor = color;
+                c.fillStyle = grd;
+                c.fillRect(ox + 4, oy + 4, CELL - 8, CELL - 8);
+                c.shadowBlur = 0;
+                // Warning icon
+                c.fillStyle = 'rgba(255,255,255,0.9)';
+                c.font = 'bold 22px Inter';
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.fillText('⚠', ox + CELL / 2, oy + CELL / 2);
+                // D1/D2/D3 badge
+                c.fillStyle = 'rgba(255,255,255,0.75)';
+                c.font = 'bold 9px JetBrains Mono';
+                c.fillText('D' + (idx + 1), ox + CELL - 12, oy + 10);
+            });
+
+            // Goal — gold tile with trophy
+            const gx = GOAL.c * CELL, gy = GOAL.r * CELL;
+            c.shadowBlur = 22;
+            c.shadowColor = '#f59e0b';
+            c.fillStyle = '#f59e0b';
+            c.fillRect(gx + 4, gy + 4, CELL - 8, CELL - 8);
+            c.shadowBlur = 0;
+            c.font = 'bold 32px Inter';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText('🏆', gx + CELL / 2, gy + CELL / 2 + 2);
+
+            // Agent — cyan glowing tile with robot emoji
+            const ax = agentPos.c * CELL + CELL / 2, ay = agentPos.r * CELL + CELL / 2;
+            c.shadowBlur = 24;
+            c.shadowColor = '#00d4ff';
+            c.fillStyle = 'rgba(0,212,255,0.25)';
+            c.fillRect(agentPos.c * CELL + 3, agentPos.r * CELL + 3, CELL - 6, CELL - 6);
+            c.shadowBlur = 0;
+            c.font = '34px Inter';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText('🤖', ax, ay + 2);
+
+            // Coord labels
+            c.fillStyle = 'rgba(100,116,139,0.6)';
+            c.font = '9px JetBrains Mono';
+            for (let r = 0; r < GRID; r++) for (let col = 0; col < GRID; col++) {
+                c.fillText(`${r},${col}`, col * CELL + 5, r * CELL + 10);
+            }
+
+            // Phase overlay text
+            c.fillStyle = phase === 'q' ? 'rgba(0,212,255,0.12)' : 'rgba(124,58,237,0.12)';
+            c.font = 'bold 90px Inter';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText(phase === 'q' ? 'Q' : 'DQN', 240, 240);
+        }
+
+        function drawRewardGraph() {
+            const w = rewardCanvas.offsetWidth || 240;
+            const h = 130;
+            rewardCanvas.width = w;
+            rewardCanvas.height = h;
+            const c = rCtx;
+            c.clearRect(0, 0, w, h);
+            c.fillStyle = '#0c1525';
+            c.fillRect(0, 0, w, h);
+
+            if (rewardHistory.length < 2) return;
+            const data = rewardHistory.slice(-120);
+            const mn = Math.min(...data) - 1;
+            const mx = Math.max(...data) + 1;
+            const xScale = w / (data.length - 1);
+            const yScale = h / (mx - mn);
+
+            // Grid lines
+            c.strokeStyle = 'rgba(30,45,69,0.8)';
+            c.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                const y = h - (i / 3) * (h - 10) - 5;
+                c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke();
+            }
+
+            // Zero line
+            const zy = h - (-mn) * yScale;
+            c.strokeStyle = 'rgba(100,116,139,0.4)';
+            c.setLineDash([4, 4]);
+            c.beginPath(); c.moveTo(0, zy); c.lineTo(w, zy); c.stroke();
+            c.setLineDash([]);
+
+            // Gradient fill
+            const grad = c.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, phase === 'q' ? 'rgba(0,212,255,0.35)' : 'rgba(124,58,237,0.35)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = grad;
+            c.beginPath();
+            data.forEach((v, i) => {
+                const x = i * xScale, y = h - (v - mn) * yScale;
+                i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+            });
+            c.lineTo((data.length - 1) * xScale, h);
+            c.lineTo(0, h);
+            c.closePath();
+            c.fill();
+
+            // Line
+            c.strokeStyle = phase === 'q' ? '#00d4ff' : '#7c3aed';
+            c.lineWidth = 2;
+            c.lineJoin = 'round';
+            c.beginPath();
+            data.forEach((v, i) => {
+                const x = i * xScale, y = h - (v - mn) * yScale;
+                i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+            });
+            c.stroke();
+
+            // Latest value label
+            c.fillStyle = phase === 'q' ? '#00d4ff' : '#7c3aed';
+            c.font = '10px JetBrains Mono';
+            c.textAlign = 'right';
+            c.fillText(`Ep ${episode} | Last: ${data[data.length - 1].toFixed(1)}`, w - 4, 14);
+        }
+
+        function drawQHeatmap() {
+            const cw = qtCanvas.offsetWidth || 240;
+            const ch = 200;
+            qtCanvas.width = cw;
+            qtCanvas.height = ch;
+            const c = qCtx;
+            c.clearRect(0, 0, cw, ch);
+            c.fillStyle = '#0c1525';
+            c.fillRect(0, 0, cw, ch);
+
+            const cSize = cw / GRID;
+            const rSize = ch / GRID;
+
+            let allQ = Q.flat();
+            const qMin = Math.min(...allQ);
+            const qMax = Math.max(...allQ) + 0.001;
+
+            for (let r = 0; r < GRID; r++) for (let col = 0; col < GRID; col++) {
+                const best = Math.max(...Q[rc2s(r, col)]);
+                const norm = (best - qMin) / (qMax - qMin);
+                const hue = norm * 120; // 0=red,120=green
+                c.fillStyle = `hsl(${hue},80%,35%)`;
+                c.fillRect(col * cSize + 1, r * rSize + 1, cSize - 2, rSize - 2);
+            }
+
+            // Agent dot
+            c.fillStyle = '#00d4ff';
+            c.beginPath();
+            c.arc(agentPos.c * cSize + cSize / 2, agentPos.r * rSize + rSize / 2, 5, 0, Math.PI * 2);
+            c.fill();
+
+            c.fillStyle = 'rgba(255,255,255,0.5)';
+            c.font = `${Math.max(7, cSize * 0.28)}px JetBrains Mono`;
+            c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.fillText('MAX-Q HEATMAP', cw / 2, ch - 8);
+        }
+
+        function updateStats() {
+            document.getElementById('statEp').textContent = episode;
+            document.getElementById('statStep').textContent = globalStep;
+            document.getElementById('statRew').textContent = cumulativeReward.toFixed(2);
+            document.getElementById('statEpRew').textContent = episodeReward.toFixed(2);
+            document.getElementById('statEps').textContent = epsilon.toFixed(3);
+            document.getElementById('statBest').textContent = bestReward === -Infinity ? '—' : bestReward.toFixed(2);
+            document.getElementById('statStatus').textContent = running ? '⚙ Training' : (episode === 0 ? 'Idle' : 'Done ✓');
+            document.getElementById('qConv').textContent = phase === 'q' ? (epsilon < 0.15 ? 'Converged' : 'Learning') : '—';
+            document.getElementById('dqnLoss').textContent = phase === 'dqn' ? dqnLoss.toFixed(4) : '—';
+            document.getElementById('replayBuf').textContent = phase === 'dqn' ? replayBuffer.length : '—';
+        }
+
+        // ─── Controls ─────────────────────────────────────────────────────────────────
+        function startTraining() {
+            if (running) return;
+            running = true;
+            showingOptimal = false;
+            if (!animId) animId = requestAnimationFrame(animLoop);
+            log(`Started ${phase.toUpperCase()} training`, 'info');
+        }
+
+        function showOptimalPath() {
+            optimalPath = computeOptimalPath();
+            showingOptimal = true;
+            if (!animId) {
+                drawGrid(); drawRewardGraph(); drawQHeatmap();
+            }
+            log(`Optimal path: ${optimalPath.length} steps`, 'success');
+        }
+
+        function resetAll() {
+            running = false;
+            showingOptimal = false;
+            optimalPath = [];
+            episode = 0; globalStep = 0; cumulativeReward = 0;
+            episodeReward = 0; bestReward = -Infinity;
+            epsilon = 1.0;
+            rewardHistory = [];
+            Q = Array.from({ length: 36 }, () => [0, 0, 0, 0]);
+            initDQN();
+            resetAgent();
+            updateStats();
+            drawGrid(); drawRewardGraph(); drawQHeatmap();
+            log('Environment reset', 'warn');
+        }
+
+        function switchPhase(p) {
+            phase = p;
+            document.getElementById('btnQ').classList.toggle('active', p === 'q');
+            document.getElementById('btnDQN').classList.toggle('active', p === 'dqn');
+            const badge = document.getElementById('phaseBadge');
+            badge.className = 'phase-badge ' + p;
+            badge.innerHTML = `<span class="pulse">●</span> ${p === 'q' ? 'Q-LEARNING' : 'DQN'} ACTIVE`;
+            if (p === 'dqn' && !dqnWeights) initDQN();
+            log(`Switched to ${p.toUpperCase()}`, 'info');
+        }
+
+        function updateSpeed(v) {
+            speed = parseInt(v);
+            stepsPerFrame = speed;
+            document.getElementById('speedLabel').textContent = v + '×';
+        }
+
+        // ─── Init ─────────────────────────────────────────────────────────────────────
+        initDQN();
+        resetAgent();
+        drawGrid();
+        drawRewardGraph();
+        drawQHeatmap();
+        log('Environment initialized. Press ▶ Train to begin.', 'info');
+    </script>
+</body>
+
+</html>
