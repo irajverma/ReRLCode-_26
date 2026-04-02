@@ -3,6 +3,7 @@
 **Course:** Reinforcement Learning (Sem 8)
 **Title:** Comparative Study of Q-Learning and Deep Q-Network on a Custom Grid World Environment
 **Total Marks:** 35
+**Team Members:** Raj Verma-23BAI10806, Tanu Singh-23BAI10750
 
 ---
 
