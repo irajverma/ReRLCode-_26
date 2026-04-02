@@ -1,9 +1,9 @@
 # Reinforcement Learning Lab Project Report
 
-**Course:** Reinforcement Learning (Sem 8)
-**Title:** Comparative Study of Q-Learning and Deep Q-Network on a Custom Grid World Environment
-**Total Marks:** 35
-**Team Members:** Raj Verma-23BAI10806, Tanu Singh-23BAI10750
+**Course:** Reinforcement Learning (Sem 8) <br>
+**Title:** Comparative Study of Q-Learning and Deep Q-Network on a Custom Grid World Environment <br>
+**Total Marks:** 35 <br>
+**Team Members:** Raj Verma-23BAI10806, Tanu Singh-23BAI10750 <br>
 
 ---
 
@@ -373,10 +373,6 @@ This project reinforces the trade-off between simplicity and scalability in RL a
 
 ---
 
-**Q10. When would you prefer DQN over Q-Learning in a real-world application?**
 
-**A:** We prefer DQN over Q-Learning when: (1) The **state space is too large** to fit in a table (e.g., image pixels → millions of states in Atari). (2) The state is **continuous** (e.g., position and velocity in robotics). (3) We need **generalisation** — the neural network can interpolate Q-values for states not seen during training, which a table cannot do. (4) Input is **high-dimensional** (e.g., camera images, sensor arrays). For our 6×6 grid world (36 states), Q-Learning is the more practical choice — DQN's overhead is not justified by the problem's simplicity.
-
----
 
 *End of Report*
